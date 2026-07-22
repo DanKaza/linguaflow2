@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   UserCircle,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/brand/Logo";
@@ -36,7 +37,25 @@ export function AppSidebar({
   userSub: string;
 }) {
   const path = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    try {
+      const res = await fetch("/api/auth/logout", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        localStorage.removeItem("lf_role");
+        localStorage.removeItem("lf_email");
+        router.push("/login");
+      }
+    } catch {
+      // Fallback: langsung redirect ke login
+      router.push("/login");
+    }
+  }
 
   const sidebar = (
     <div className="flex h-full flex-col">
@@ -74,6 +93,16 @@ export function AppSidebar({
             <p className="truncate text-xs text-ink-soft">{userSub}</p>
           </div>
         </div>
+
+        {/* Logout button */}
+        <button
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className="mt-2 flex w-full items-center gap-3 rounded-btn px-3 py-2.5 text-sm font-semibold text-ink-soft transition-colors hover:bg-error/10 hover:text-error"
+        >
+          <LogOut size={18} />
+          {loggingOut ? "Logging out..." : "Logout"}
+        </button>
       </div>
     </div>
   );
@@ -129,4 +158,14 @@ export const adminItems: SidebarItem[] = [
   { label: "Kelas", href: "/a/kelas", icon: ClipboardList },
   { label: "Laporan", href: "/a/laporan", icon: BarChart3 },
   { label: "Pengaturan", href: "/a/pengaturan", icon: Settings },
+];
+
+export const studentSidebarItems: SidebarItem[] = [
+  { label: "Dashboard", href: "/m/dashboard", icon: LayoutDashboard },
+  { label: "Belajar", href: "/m/belajar", icon: ClipboardList },
+  { label: "Kuis", href: "/m/kuis", icon: FileQuestion },
+  { label: "Kamus", href: "/m/kamus", icon: Users },
+  { label: "Leaderboard", href: "/m/leaderboard", icon: BarChart3 },
+  { label: "Sensei", href: "/m/sensei", icon: UserCircle },
+  { label: "Profil", href: "/m/profil", icon: Settings },
 ];

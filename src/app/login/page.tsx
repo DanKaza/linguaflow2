@@ -3,25 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff, Mail, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Mail, Loader2, Lock } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-
-type Role = "murid" | "guru" | "admin";
-
-function detectRole(email: string): Role {
-  const e = email.toLowerCase();
-  if (e.includes("admin") || e.includes("kepala") || e.includes("waka")) return "admin";
-  if (e.includes("guru") || e.includes("bu") || e.includes("pak") || e.includes("sensei")) return "guru";
-  return "murid";
-}
-
-const demos: { label: string; email: string; role: Role }[] = [
-  { label: "Murid", email: "ahmad.fauzi@siswa.smk.id", role: "murid" },
-  { label: "Guru", email: "siti.rahma@guru.smk.id", role: "guru" },
-  { label: "Admin", email: "admin@smktexar.sch.id", role: "admin" },
-];
+import { signIn } from "@/lib/supabase/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,29 +15,25 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
-  function go(role: Role) {
-    const map = { murid: "/m/dashboard", guru: "/g/dashboard", admin: "/a/dashboard" };
-    router.push(map[role]);
-  }
-
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email) return;
+    if (!email || !password) return;
     setLoading(true);
-    // Demo auth — no real backend. Simpan role ke localStorage.
-    const role = detectRole(email);
-    localStorage.setItem("lf_role", role);
-    localStorage.setItem("lf_email", email);
-    setTimeout(() => go(role), 700);
-  }
+    setError("");
 
-  function quick(role: Role, mail: string) {
-    setEmail(mail);
-    setPassword("demo1234");
-    localStorage.setItem("lf_role", role);
-    localStorage.setItem("lf_email", mail);
-    router.push(role === "murid" ? "/m/dashboard" : role === "guru" ? "/g/dashboard" : "/a/dashboard");
+    const result = await signIn(email, password);
+
+    if (result.success) {
+      // Simpan role untuk client-side reference (optional)
+      localStorage.setItem("lf_role", result.role);
+      localStorage.setItem("lf_email", email);
+      router.push(result.redirectTo);
+    } else {
+      setError(result.error);
+      setLoading(false);
+    }
   }
 
   return (
@@ -67,24 +49,25 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={submit} className="rounded-card border border-line bg-paper p-6 shadow-soft">
-          <label className="mb-1.5 block text-sm font-semibold text-ink">Email atau NIS</label>
           <div className="relative">
             <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" />
             <Input
-              type="text"
+              type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="ahmad.fauzi@siswa.smk.id"
+              placeholder="email@sekolah.sch.id"
               className="pl-10"
+              required
+              autoComplete="email"
             />
           </div>
 
-          <label className="mb-1.5 mt-4 block text-sm font-semibold text-ink">Password</label>
-          <div className="relative">
+          <div className="relative mt-4">
+            <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" />
             <button
               type="button"
               onClick={() => setShow((s) => !s)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft"
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 text-ink-soft"
               aria-label="Tampilkan password"
             >
               {show ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -93,11 +76,20 @@ export default function LoginPage() {
               type={show ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder="Password"
+              className="pl-10"
+              required
+              autoComplete="current-password"
             />
           </div>
 
-          <Button type="submit" fullWidth className="mt-5" disabled={loading || !email}>
+          {error && (
+            <p className="mt-3 text-sm font-semibold text-error flex items-center gap-1.5">
+              <span>⚠</span> {error}
+            </p>
+          )}
+
+          <Button type="submit" fullWidth className="mt-5" disabled={loading || !email || !password}>
             {loading ? (
               <>
                 <Loader2 size={18} className="animate-spin" /> Memeriksa…
@@ -118,28 +110,18 @@ export default function LoginPage() {
           </div>
 
           <Link href="/register">
-            <Button fullWidth variant="outline">
-              Daftar dengan Kode Kelas
+            <Button fullWidth variant="outline" type="button">
+              Daftar Akun Baru
             </Button>
           </Link>
         </form>
 
-        {/* Demo accounts */}
+        {/* Informasi */}
         <div className="mt-5 rounded-card border border-dashed border-indigo/40 bg-indigo-tint-soft/30 p-4">
-          <p className="text-xs font-bold text-indigo">Akun Demo (klik untuk masuk cepat)</p>
-          <div className="mt-2 grid grid-cols-3 gap-2">
-            {demos.map((d) => (
-              <button
-                key={d.role}
-                onClick={() => quick(d.role, d.email)}
-                className="rounded-btn border border-indigo bg-paper px-2 py-2 text-xs font-semibold text-indigo transition-colors hover:bg-indigo-tint-soft"
-              >
-                {d.label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-2 text-[10px] text-ink-soft">
-            Role otomatis dari email. Backend masih simulasi.
+          <p className="text-xs font-bold text-indigo">💡 Tentang Login</p>
+          <p className="mt-1 text-xs text-ink-soft leading-relaxed">
+            Login menggunakan akun yang sudah terdaftar. 
+            Jika belum punya akun, silakan daftar terlebih dahulu.
           </p>
         </div>
 
